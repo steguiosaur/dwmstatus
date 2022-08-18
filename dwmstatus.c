@@ -187,7 +187,7 @@ execscript(char *cmd)
 	if (fp == NULL)
 		return smprintf("");
 
-	rv = fgets(retval, sizeof(retval)-1, fp);
+	rv = fgets(retval, sizeof(retval), fp);
 	pclose(fp);
 	if (rv == NULL)
 		return smprintf("");
