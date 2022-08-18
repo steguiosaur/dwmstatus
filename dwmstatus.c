@@ -175,17 +175,39 @@ gettemperature(char *base, char *sensor)
 	return smprintf("%02.0f°C", atof(co) / 1000);
 }
 
+char *
+execscript(char *cmd)
+{
+	FILE *fp;
+	char retval[1025], rv;
+
+	memset(retval, 0, sizeof(retval));
+
+	fp = popen(cmd, "r");
+	if (fp == NULL)
+		return smprintf("");
+
+	rv = fgets(retval, sizeof(retval)-1, fp);
+	pclose(fp);
+	if (rv == NULL)
+		return smprintf("");
+	retval[strlen(retval)-1] = '\0';
+
+	return smprintf("%s", retval);
+}
+
 int
 main(void)
 {
 	char *status;
 	char *avgs;
 	char *bat;
-	char *bat1;
 	char *tmar;
 	char *tmutc;
 	char *tmbln;
-	char *t0, *t1, *t2;
+	char *t0;
+	char *t1;
+	char *kbmap;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
@@ -195,25 +217,23 @@ main(void)
 	for (;;sleep(60)) {
 		avgs = loadavg();
 		bat = getbattery("/sys/class/power_supply/BAT0");
-		bat1 = getbattery("/sys/class/power_supply/BAT1");
 		tmar = mktimes("%H:%M", tzargentina);
 		tmutc = mktimes("%H:%M", tzutc);
 		tmbln = mktimes("KW %W %a %d %b %H:%M %Z %Y", tzberlin);
-		t0 = gettemperature("/sys/devices/virtual/hwmon/hwmon0", "temp1_input");
-		t1 = gettemperature("/sys/devices/virtual/hwmon/hwmon2", "temp1_input");
-		t2 = gettemperature("/sys/devices/virtual/hwmon/hwmon4", "temp1_input");
+		kbmap = execscript("setxkbmap -query | grep layout | cut -d':' -f 2- | tr -d ' '");
+		t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
+		t1 = gettemperature("/sys/devices/virtual/thermal/thermal_zone1", "temp");
 
-		status = smprintf("T:%s|%s|%s L:%s B:%s|%s A:%s U:%s %s",
-				t0, t1, t2, avgs, bat, bat1, tmar, tmutc,
+		status = smprintf("K:%s T:%s|%s L:%s B:%s A:%s U:%s %s",
+				kbmap, t0, t1, avgs, bat, tmar, tmutc,
 				tmbln);
 		setstatus(status);
 
+		free(kbmap);
 		free(t0);
 		free(t1);
-		free(t2);
 		free(avgs);
 		free(bat);
-		free(bat1);
 		free(tmar);
 		free(tmutc);
 		free(tmbln);
