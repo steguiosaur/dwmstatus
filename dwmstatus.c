@@ -179,7 +179,7 @@ char *
 execscript(char *cmd)
 {
 	FILE *fp;
-	char retval[1025], rv;
+	char retval[1025], *rv;
 
 	memset(retval, 0, sizeof(retval));
 
