@@ -106,8 +106,10 @@ readfile(char *base, char *file)
 	if (fd == NULL)
 		return NULL;
 
-	if (fgets(line, sizeof(line)-1, fd) == NULL)
+	if (fgets(line, sizeof(line)-1, fd) == NULL) {
+		fclose(fd);
 		return NULL;
+	}
 	fclose(fd);
 
 	return smprintf("%s", line);
