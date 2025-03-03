@@ -96,11 +96,12 @@ char *getwifi(void) {
     char ssid[1035] = "";
     int wifi_on = 0;
     char *icon = "";
+    char strength_str[5] = "";
 
     // Check if Wi-Fi is enabled
     fp = popen("nmcli radio wifi", "r");
     if (fp == NULL) {
-        return smprintf("󰂎 error"); // Unknown icon for error
+        return smprintf("󰂎 error");
     }
 
     if (fgets(path, sizeof(path) - 1, fp) != NULL) {
@@ -111,34 +112,53 @@ char *getwifi(void) {
     pclose(fp);
 
     if (wifi_on) {
-        // Get the SSID of the connected network
-        fp = popen("nmcli -t -f active,ssid dev wifi | grep '^yes' | cut -d: -f2", "r");
+        // Get Wi-Fi status and SSID and strength
+        fp = popen("nmcli -t -f active,ssid,signal dev wifi | grep '^yes'", "r");
         if (fp == NULL) {
-            return smprintf("󰂎 error"); // Unknown icon for error
+            return smprintf("󱛏 ERR");
         }
 
-        if (fgets(ssid, sizeof(ssid) - 1, fp) != NULL) {
-            // Remove newline character from the end of the SSID
+        if (fgets(path, sizeof(path) - 1, fp) != NULL) {
+            sscanf(path, "yes:%[^:]:%s", ssid, strength_str);
+            // Remove newline character from the end of SSID and strength if present (though -t should prevent it for ssid and signal)
             ssid[strcspn(ssid, "\n")] = '\0';
+            strength_str[strcspn(strength_str, "\n")] = '\0';
             pclose(fp);
 
-            icon = "󰤟"; // Connected icon
-            // Truncate SSID if it is longer than 5 characters
-            if (strlen(ssid) > 5) {
-                char truncated_ssid[9]; // 5 characters + "..." + null terminator
-                snprintf(truncated_ssid, sizeof(truncated_ssid), "%.2s...", ssid);
-                return smprintf("%s %s", icon, truncated_ssid); // Icon and truncated SSID
+            int strength = -1;
+            if (sscanf(strength_str, "%d", &strength) == 1) {
+                if (strength >= 75) {
+                    icon = "󰤨"; // Wifi Strength 4 (Excellent)
+                } else if (strength >= 50) {
+                    icon = "󰤥"; // Wifi Strength 3 (Good)
+                } else if (strength >= 25) {
+                    icon = "󰤢"; // Wifi Strength 2 (Fair)
+                } else if (strength >= 1) {
+                    icon = "󰤟"; // Wifi Strength 1 (Weak)
+                } else {
+                    icon = "󰤯"; // Wifi Strength 0 (Very Weak/None)
+                    return smprintf("%s %s", icon, "0%");
+                }
+                // Truncate SSID if it is longer than 5 characters
+                if (strlen(ssid) > 5) {
+                    char truncated_ssid[9]; // 5 characters + "..." + null terminator
+                    snprintf(truncated_ssid, sizeof(truncated_ssid), "%.4s…", ssid);
+                    return smprintf("%s %s", icon, truncated_ssid); // Icon and truncated SSID
+                } else {
+                    return smprintf("%s %s", icon, ssid); // Icon and SSID
+                }
             } else {
-                return smprintf("%s %s", icon, ssid); // Icon and SSID
+                return smprintf("󱛏 ERR"); // Could not parse strength, unknown error.
             }
+
         } else { // Wi-Fi is on but not connected to a network (no SSID)
             pclose(fp);
-            icon = "󰤢"; // On (but not connected) icon
+            icon = "󰤫"; // On (but not connected) icon
             return smprintf("%s on", icon);
         }
 
     } else {
-        icon = "󰤪"; // Off icon
+        icon = "󰤭"; // Off icon
         return smprintf("%s off", icon);
     }
 }
@@ -153,13 +173,13 @@ char *getbattery(char *base) {
         return smprintf("");
     if (co[0] != '1') {
         free(co);
-        return smprintf("󰂎 not present"); // Unknown icon for not present
+        return smprintf("󱉞 NP"); // Unknown icon for not present
     }
     free(co);
 
     co = readfile(base, "capacity");
     if (co == NULL) {
-        return smprintf("󰂎 invalid"); // Unknown icon for invalid
+        return smprintf("󰂃 ERR"); // Unknown icon for invalid
     }
     sscanf(co, "%d", &capacity);
     free(co);
@@ -167,31 +187,54 @@ char *getbattery(char *base) {
     co = readfile(base, "status");
     if (co == NULL) {
         status = '?';
-        icon = "󰂎"; // Unknown icon for status error
+        icon = "󰂃"; // Unknown icon for status error
     } else if (!strncmp(co, "Not charging", 12)) {
         status = '*';
-        if (capacity >= 100) icon = "󰁹"; // Full
-        else icon = "󰁹"; // Using Full icon even when "Not charging" but not 100% - adjust if needed
+        if (capacity <= 10) icon = "󰁺";
+        else if (capacity <= 20) icon = "󰁻";
+        else if (capacity <= 30) icon = "󰁼";
+        else if (capacity <= 40) icon = "󰁽";
+        else if (capacity <= 50) icon = "󰁾";
+        else if (capacity <= 60) icon = "󰁿";
+        else if (capacity <= 70) icon = "󰂀";
+        else if (capacity <= 80) icon = "󰂁";
+        else if (capacity <= 90) icon = "󰂂";
+        else icon = "󰁹";
     } else if (!strncmp(co, "Discharging", 11)) {
         status = '-';
-        if (capacity <= 20) icon = "󰁼"; // Empty
-        else if (capacity <= 50) icon = "󰁾"; // Quarter
-        else if (capacity <= 80) icon = "󰂀"; // Half
-        else icon = "󰂂"; // Three-Quarters
+        if (capacity <= 10) icon = "󰁺";
+        else if (capacity <= 20) icon = "󰁻";
+        else if (capacity <= 30) icon = "󰁼";
+        else if (capacity <= 40) icon = "󰁽";
+        else if (capacity <= 50) icon = "󰁾";
+        else if (capacity <= 60) icon = "󰁿";
+        else if (capacity <= 70) icon = "󰂀";
+        else if (capacity <= 80) icon = "󰂁";
+        else if (capacity <= 90) icon = "󰂂";
+        else icon = "󰁹";
     } else if (!strncmp(co, "Charging", 8)) {
         status = '+';
-        icon = "󰢈"; // Charging
+        if (capacity <= 10) icon = "󰢜";
+        else if (capacity <= 20) icon = "󰂆";
+        else if (capacity <= 30) icon = "󰂇";
+        else if (capacity <= 40) icon = "󰂈";
+        else if (capacity <= 50) icon = "󰢝";
+        else if (capacity <= 60) icon = "󰂉";
+        else if (capacity <= 70) icon = "󰢞";
+        else if (capacity <= 80) icon = "󰂊";
+        else if (capacity <= 90) icon = "󰂋";
+        else icon = "󰂅";
     } else if (!strncmp(co, "Full", 4)) {
         status = '^';
-        icon = "󰁹"; // Full
+        icon = "󱟢"; // Full
     } else {
         status = '?';
-        icon = "󰂎"; // Unknown icon for unknown status
+        icon = "󰂃"; // Unknown icon for unknown status
     }
     free(co);
 
     if (capacity < 0)
-        return smprintf("󰂎 invalid"); // Unknown icon for invalid capacity
+        return smprintf("󰂃 ERR"); // Unknown icon for invalid capacity
 
     return smprintf("%s %d%%%c", icon, capacity, status); // Return icon and text
 }
@@ -213,7 +256,7 @@ char *getvolume(void) {
 
     fp = popen("pamixer --get-volume", "r");
     if (fp == NULL) {
-        return smprintf("󰝰 err"); // Volume Error icon
+        return smprintf("󱄡 ERR"); // Volume Error icon
     }
 
     if (fgets(path, sizeof(path) - 1, fp) != NULL) {
@@ -251,11 +294,12 @@ char *getbrightness(void) {
     fclose(fp);
 
     if (brightness_level >= 0) {
-        int percent_brightness = (brightness_level * 100 + max_brightness / 2) / max_brightness; // Round to nearest integer
-        if (percent_brightness <= 30) icon = "󰃞"; // Low Brightness
-        else if (percent_brightness <= 70) icon = "󰃟"; // Medium Brightness
+        int percent_brightness = (brightness_level * 100 + max_brightness / 2) / max_brightness;
+        if (percent_brightness <= 15) icon = "󰃞"; // Low Brightness
+        else if (percent_brightness <= 40) icon = "󰃟"; // Chill Brightness
+        else if (percent_brightness <= 70) icon = "󰃝"; // Medium Brightness
         else icon = "󰃠"; // High Brightness
-        return smprintf("%s %d%%", icon, percent_brightness); // Return icon and text
+        return smprintf("%s %d%%", icon, percent_brightness);
     } else {
         return smprintf("󰳲 E%"); // Unknown icon for unknown brightness
     }
@@ -311,8 +355,8 @@ int main(void) {
         bright = getbrightness();
         ram = getram();
 
-        status = smprintf(" |  %s:%s | 󰍛 %s | 󰓅 %s | %s %s | %s | %s |  %s | %s | ", // Removed static icons
-                t0, t1, avgs, ram, bat0, bat1, bright, vol, tmmnl, wifi); // Using dynamic icons from functions
+        status = smprintf("   %s:%s | 󰍛 %s | 󰓅 %s | %s %s | %s | %s | 󰃭 %s | %s ",
+                t0, t1, avgs, ram, bat0, bat1, bright, vol, tmmnl, wifi);
         setstatus(status);
 
         free(t0);
